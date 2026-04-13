@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Игры разума — Команда</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Arial', sans-serif;
+      background: #1a1a2e;
+      color: #fff;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* --- Экран выбора команды --- */
+    #screen-select {
+      text-align: center;
+      width: 100%;
+      padding: 20px;
+    }
+    #screen-select h1 {
+      font-size: 2em;
+      margin-bottom: 30px;
+      color: #e94560;
+    }
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 15px;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    .team-btn {
+      background: #16213e;
+      border: 3px solid #e94560;
+      color: #fff;
+      font-size: 2em;
+      font-weight: bold;
+      padding: 25px;
+      border-radius: 15px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .team-btn:active {
+      background: #e94560;
+      transform: scale(0.95);
+    }
+
+    /* --- Экран ожидания / кнопка --- */
+    #screen-game {
+      text-align: center;
+    }
+    .team-label {
+      font-size: 1.5em;
+      color: #aaa;
+      margin-bottom: 20px;
+    }
+    .status-text {
+      font-size: 1.8em;
+      margin-bottom: 40px;
+      min-height: 50px;
+    }
+    .buzz-btn {
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      border: none;
+      font-size: 2em;
+      font-weight: bold;
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.15s;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      position: relative;
+    }
+    .buzz-btn.inactive {
+      background: #555;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+      cursor: not-allowed;
+    }
+    .buzz-btn.active {
+      background: radial-gradient(circle at 40% 35%, #ff4444, #cc0000, #990000);
+      box-shadow: 0 10px 40px rgba(233, 69, 96, 0.6);
+      animation: pulse 1.5s infinite;
+    }
+    .buzz-btn.active:active {
+      transform: scale(0.93);
+      box-shadow: 0 5px 20px rgba(233, 69, 96, 0.4);
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 10px 40px rgba(233, 69, 96, 0.6); }
+      50% { box-shadow: 0 10px 60px rgba(233, 69, 96, 0.9); }
+    }
+
+    /* --- Экран победителя --- */
+    #screen-winner {
+      text-align: center;
+    }
+    .winner-label {
+      font-size: 2em;
+      color: #e94560;
+      margin-bottom: 20px;
+    }
+    .winner-number {
+      font-size: 15em;
+      font-weight: bold;
+      color: #e94560;
+      text-shadow: 0 0 60px rgba(233, 69, 96, 0.8);
+      line-height: 1;
+      animation: winPulse 0.8s infinite;
+    }
+    @keyframes winPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    .screen { display: none !important; }
+    .screen.visible {
+      display: flex !important;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Экран 1: выбор команды -->
+  <div id="screen-select" class="screen visible" style="">
+    <h1 style="color: #e94560; margin-bottom: 10px;">Игры разума</h1>
+    <p style="font-size: 1.3em; color: #aaa; margin-bottom: 30px;">Выберите команду</p>
+    <div class="team-grid">
+      <button class="team-btn" onclick="selectTeam(1)">1</button>
+      <button class="team-btn" onclick="selectTeam(2)">2</button>
+      <button class="team-btn" onclick="selectTeam(3)">3</button>
+      <button class="team-btn" onclick="selectTeam(4)">4</button>
+      <button class="team-btn" onclick="selectTeam(5)">5</button>
+      <button class="team-btn" onclick="selectTeam(6)">6</button>
+      <button class="team-btn" onclick="selectTeam(7)">7</button>
+      <button class="team-btn" onclick="selectTeam(8)">8</button>
+    </div>
+  </div>
+
+  <!-- Экран 2: кнопка -->
+  <div id="screen-game" class="screen">
+    <h1 style="color: #e94560; margin-bottom: 5px;">Игры разума</h1>
+    <div class="team-label">Команда <span id="my-team">?</span></div>
+    <div class="status-text" id="status">Ожидание ведущего...</div>
+    <button class="buzz-btn inactive" id="buzz-btn" onclick="buzz()" disabled>
+      ЖМИТЕ!
+    </button>
+  </div>
+
+  <!-- Экран 3: победитель -->
+  <div id="screen-winner" class="screen">
+    <div class="winner-label">Первой ответила</div>
+    <div class="winner-number" id="winner-number">?</div>
+    <div class="winner-label">команда</div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let myTeam = null;
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('visible'));
+      document.getElementById(id).classList.add('visible');
+    }
+
+    function selectTeam(num) {
+      myTeam = num;
+      document.getElementById('my-team').textContent = num;
+      document.title = 'Игры разума — Команда ' + num;
+      socket.emit('join-team', num);
+      showScreen('screen-game');
+    }
+
+    function buzz() {
+      socket.emit('buzz');
+    }
+
+    // Раунд начался — активировать кнопку
+    socket.on('round-started', () => {
+      showScreen('screen-game');
+      const btn = document.getElementById('buzz-btn');
+      btn.classList.remove('inactive');
+      btn.classList.add('active');
+      btn.disabled = false;
+      document.getElementById('status').textContent = 'ЖМИТЕ!';
+    });
+
+    // Кто-то победил
+    socket.on('team-won', (teamNumber) => {
+      document.getElementById('winner-number').textContent = teamNumber;
+      showScreen('screen-winner');
+    });
+
+    // Раунд сброшен
+    socket.on('round-reset', () => {
+      showScreen('screen-game');
+      const btn = document.getElementById('buzz-btn');
+      btn.classList.remove('active');
+      btn.classList.add('inactive');
+      btn.disabled = true;
+      document.getElementById('status').textContent = 'Ожидание ведущего...';
+    });
+
+    // Состояние при подключении
+    socket.on('game-state', (state) => {
+      if (state.winner) {
+        document.getElementById('winner-number').textContent = state.winner;
+        showScreen('screen-winner');
+      }
+    });
+  </script>
+</body>
+</html>

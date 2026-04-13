@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Игры разума — Ведущий</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Arial', sans-serif;
+      background: #1a1a2e;
+      color: #fff;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    h1 {
+      font-size: 2em;
+      color: #e94560;
+      margin-bottom: 30px;
+    }
+
+    .status {
+      font-size: 1.5em;
+      margin-bottom: 40px;
+      min-height: 50px;
+      color: #aaa;
+    }
+
+    .controls {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 50px;
+    }
+
+    .ctrl-btn {
+      padding: 20px 50px;
+      font-size: 1.5em;
+      font-weight: bold;
+      border: none;
+      border-radius: 15px;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: #fff;
+    }
+    .ctrl-btn:active {
+      transform: scale(0.95);
+    }
+    .ctrl-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    #btn-start {
+      background: #27ae60;
+      box-shadow: 0 5px 20px rgba(39, 174, 96, 0.4);
+    }
+    #btn-start:hover:not(:disabled) {
+      background: #2ecc71;
+    }
+
+    #btn-reset {
+      background: #e67e22;
+      box-shadow: 0 5px 20px rgba(230, 126, 34, 0.4);
+    }
+    #btn-reset:hover:not(:disabled) {
+      background: #f39c12;
+    }
+
+    /* Победитель */
+    .winner-display {
+      display: none;
+      text-align: center;
+    }
+    .winner-display.visible {
+      display: block;
+    }
+    .winner-label {
+      font-size: 2em;
+      color: #e94560;
+      margin-bottom: 10px;
+    }
+    .winner-number {
+      font-size: 15em;
+      font-weight: bold;
+      color: #e94560;
+      text-shadow: 0 0 60px rgba(233, 69, 96, 0.8);
+      line-height: 1;
+      animation: winPulse 0.8s infinite;
+    }
+    @keyframes winPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    /* Ожидание */
+    .waiting-display {
+      display: none;
+      text-align: center;
+    }
+    .waiting-display.visible {
+      display: block;
+    }
+    .waiting-text {
+      font-size: 3em;
+      color: #f39c12;
+      animation: blink 1s infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Игры разума — Ведущий</h1>
+  <div class="status" id="status">Готово к игре</div>
+
+  <div class="controls">
+    <button class="ctrl-btn" id="btn-start" onclick="startRound()">СТАРТ</button>
+    <button class="ctrl-btn" id="btn-reset" onclick="resetRound()">СБРОС</button>
+  </div>
+
+  <div class="waiting-display" id="waiting-display">
+    <div class="waiting-text">Ждём ответ...</div>
+  </div>
+
+  <div class="winner-display" id="winner-display">
+    <div class="winner-label">Первой ответила</div>
+    <div class="winner-number" id="winner-number">?</div>
+    <div class="winner-label">команда</div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    socket.emit('join-host');
+
+    function startRound() {
+      socket.emit('start-round');
+    }
+
+    function resetRound() {
+      socket.emit('reset-round');
+    }
+
+    socket.on('round-started', () => {
+      document.getElementById('status').textContent = 'Раунд идёт!';
+      document.getElementById('status').style.color = '#2ecc71';
+      document.getElementById('btn-start').disabled = true;
+      document.getElementById('winner-display').classList.remove('visible');
+      document.getElementById('waiting-display').classList.add('visible');
+    });
+
+    socket.on('team-won', (teamNumber) => {
+      document.getElementById('status').textContent = `Команда ${teamNumber} ответила первой!`;
+      document.getElementById('status').style.color = '#e94560';
+      document.getElementById('winner-number').textContent = teamNumber;
+      document.getElementById('waiting-display').classList.remove('visible');
+      document.getElementById('winner-display').classList.add('visible');
+      document.getElementById('btn-start').disabled = true;
+    });
+
+    socket.on('round-reset', () => {
+      document.getElementById('status').textContent = 'Готово к игре';
+      document.getElementById('status').style.color = '#aaa';
+      document.getElementById('btn-start').disabled = false;
+      document.getElementById('winner-display').classList.remove('visible');
+      document.getElementById('waiting-display').classList.remove('visible');
+    });
+
+    socket.on('game-state', (state) => {
+      if (state.winner) {
+        document.getElementById('winner-number').textContent = state.winner;
+        document.getElementById('winner-display').classList.add('visible');
+        document.getElementById('status').textContent = `Команда ${state.winner} ответила первой!`;
+        document.getElementById('status').style.color = '#e94560';
+        document.getElementById('btn-start').disabled = true;
+      }
+    });
+  </script>
+</body>
+</html>
