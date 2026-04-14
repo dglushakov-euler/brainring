@@ -99,26 +99,38 @@
       50% { box-shadow: 0 10px 60px rgba(233, 69, 96, 0.9); }
     }
 
-    /* --- Экран победителя --- */
-    #screen-winner {
-      text-align: center;
+    /* --- Очередь нажатий --- */
+    .buzz-order {
+      margin-top: 25px;
+      width: 100%;
+      max-width: 400px;
     }
-    .winner-label {
-      font-size: 2em;
-      color: #e94560;
-      margin-bottom: 20px;
+    .buzz-order-item {
+      padding: 8px 0;
+      border-bottom: 1px solid #333;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
     }
-    .winner-number {
-      font-size: 15em;
+    .buzz-order-item.first {
+      font-size: 2.5em;
       font-weight: bold;
       color: #e94560;
-      text-shadow: 0 0 60px rgba(233, 69, 96, 0.8);
-      line-height: 1;
-      animation: winPulse 0.8s infinite;
+      padding: 15px 0;
+      text-shadow: 0 0 30px rgba(233, 69, 96, 0.5);
     }
-    @keyframes winPulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.05); }
+    .buzz-order-item.other {
+      font-size: 1.3em;
+      color: #888;
+    }
+    .buzz-position {
+      color: #555;
+      min-width: 30px;
+      text-align: right;
+    }
+    .buzz-order-item.first .buzz-position {
+      color: #e94560;
     }
 
     .screen { display: none !important; }
@@ -158,13 +170,7 @@
     <button class="buzz-btn inactive" id="buzz-btn" onclick="buzz()" disabled>
       ЖМИТЕ!
     </button>
-  </div>
-
-  <!-- Экран 3: победитель -->
-  <div id="screen-winner" class="screen">
-    <div class="winner-label">Первой ответила</div>
-    <div class="winner-number" id="winner-number">?</div>
-    <div class="winner-label">команда</div>
+    <div class="buzz-order" id="buzz-order"></div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
@@ -185,41 +191,62 @@
       showScreen('screen-game');
     }
 
+    let myBuzzed = false;
+
     function buzz() {
+      if (myBuzzed) return;
+      myBuzzed = true;
       socket.emit('buzz');
+      const btn = document.getElementById('buzz-btn');
+      btn.classList.remove('active');
+      btn.classList.add('inactive');
+      btn.disabled = true;
     }
 
-    // Раунд начался — активировать кнопку
+    function renderBuzzOrder(order) {
+      const container = document.getElementById('buzz-order');
+      container.innerHTML = '';
+      order.forEach((teamNum, i) => {
+        const div = document.createElement('div');
+        div.className = 'buzz-order-item ' + (i === 0 ? 'first' : 'other');
+        div.innerHTML = '<span class="buzz-position">' + (i + 1) + '.</span> Команда ' + teamNum;
+        container.appendChild(div);
+      });
+    }
+
+    // Раунд начался
     socket.on('round-started', () => {
+      myBuzzed = false;
       showScreen('screen-game');
       const btn = document.getElementById('buzz-btn');
       btn.classList.remove('inactive');
       btn.classList.add('active');
       btn.disabled = false;
       document.getElementById('status').textContent = 'ЖМИТЕ!';
+      document.getElementById('buzz-order').innerHTML = '';
     });
 
-    // Кто-то победил
-    socket.on('team-won', (teamNumber) => {
-      document.getElementById('winner-number').textContent = teamNumber;
-      showScreen('screen-winner');
+    // Кто-то нажал кнопку
+    socket.on('team-buzzed', (order) => {
+      renderBuzzOrder(order);
     });
 
     // Раунд сброшен
     socket.on('round-reset', () => {
+      myBuzzed = false;
       showScreen('screen-game');
       const btn = document.getElementById('buzz-btn');
       btn.classList.remove('active');
       btn.classList.add('inactive');
       btn.disabled = true;
       document.getElementById('status').textContent = 'Ожидание ведущего...';
+      document.getElementById('buzz-order').innerHTML = '';
     });
 
     // Состояние при подключении
     socket.on('game-state', (state) => {
-      if (state.winner) {
-        document.getElementById('winner-number').textContent = state.winner;
-        showScreen('screen-winner');
+      if (state.buzzOrder && state.buzzOrder.length > 0) {
+        renderBuzzOrder(state.buzzOrder);
       }
     });
   </script>

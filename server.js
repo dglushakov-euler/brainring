@@ -11,7 +11,7 @@ app.use(express.static('public'));
 // Состояние игры
 let gameState = {
   active: false,       // раунд активен?
-  winner: null,        // номер команды-победителя
+  buzzOrder: [],       // очередь нажатий: [teamNumber, teamNumber, ...]
   teams: {}            // подключённые команды: { socketId: teamNumber }
 };
 
@@ -26,7 +26,7 @@ io.on('connection', (socket) => {
     // Отправить текущее состояние новой команде
     socket.emit('game-state', {
       active: gameState.active,
-      winner: gameState.winner
+      buzzOrder: gameState.buzzOrder
     });
   });
 
@@ -36,15 +36,14 @@ io.on('connection', (socket) => {
     console.log('Ведущий подключился');
     socket.emit('game-state', {
       active: gameState.active,
-      winner: gameState.winner,
-      teamsCount: Object.keys(gameState.teams).length
+      buzzOrder: gameState.buzzOrder
     });
   });
 
   // Ведущий нажимает "Старт"
   socket.on('start-round', () => {
     gameState.active = true;
-    gameState.winner = null;
+    gameState.buzzOrder = [];
     console.log('--- Раунд начался! ---');
     io.emit('round-started');
   });
@@ -52,21 +51,22 @@ io.on('connection', (socket) => {
   // Команда нажимает кнопку
   socket.on('buzz', () => {
     if (!gameState.active) return;
-    if (gameState.winner !== null) return;
 
     const teamNumber = gameState.teams[socket.id];
     if (!teamNumber) return;
 
-    gameState.winner = teamNumber;
-    gameState.active = false;
-    console.log(`Команда ${teamNumber} нажала первой!`);
-    io.emit('team-won', teamNumber);
+    // Если команда уже нажимала — игнорируем
+    if (gameState.buzzOrder.includes(teamNumber)) return;
+
+    gameState.buzzOrder.push(teamNumber);
+    console.log(`Команда ${teamNumber} нажала (позиция ${gameState.buzzOrder.length})`);
+    io.emit('team-buzzed', gameState.buzzOrder);
   });
 
   // Ведущий сбрасывает раунд
   socket.on('reset-round', () => {
     gameState.active = false;
-    gameState.winner = null;
+    gameState.buzzOrder = [];
     console.log('--- Раунд сброшен ---');
     io.emit('round-reset');
   });

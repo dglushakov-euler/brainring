@@ -73,21 +73,13 @@
       background: #f39c12;
     }
 
-    /* Победитель */
-    .winner-display {
-      display: none;
+    /* Очередь нажатий */
+    .buzz-queue {
       text-align: center;
+      min-height: 100px;
     }
-    .winner-display.visible {
-      display: block;
-    }
-    .winner-label {
-      font-size: 2em;
-      color: #e94560;
-      margin-bottom: 10px;
-    }
-    .winner-number {
-      font-size: 15em;
+    .buzz-first {
+      font-size: 12em;
       font-weight: bold;
       color: #e94560;
       text-shadow: 0 0 60px rgba(233, 69, 96, 0.8);
@@ -97,6 +89,24 @@
     @keyframes winPulse {
       0%, 100% { transform: scale(1); }
       50% { transform: scale(1.05); }
+    }
+    .buzz-rest {
+      margin-top: 20px;
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .buzz-rest-item {
+      font-size: 2em;
+      color: #888;
+      background: #16213e;
+      padding: 10px 25px;
+      border-radius: 12px;
+    }
+    .buzz-rest-item .pos {
+      color: #555;
+      margin-right: 5px;
     }
 
     /* Ожидание */
@@ -132,11 +142,7 @@
     <div class="waiting-text">Ждём ответ...</div>
   </div>
 
-  <div class="winner-display" id="winner-display">
-    <div class="winner-label">Первой ответила</div>
-    <div class="winner-number" id="winner-number">?</div>
-    <div class="winner-label">команда</div>
-  </div>
+  <div class="buzz-queue" id="buzz-queue"></div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
@@ -151,37 +157,58 @@
       socket.emit('reset-round');
     }
 
+    function renderBuzzQueue(order) {
+      const container = document.getElementById('buzz-queue');
+      container.innerHTML = '';
+      if (order.length === 0) return;
+
+      // Первый — крупно
+      const first = document.createElement('div');
+      first.className = 'buzz-first';
+      first.textContent = order[0];
+      container.appendChild(first);
+
+      // Остальные — мельче
+      if (order.length > 1) {
+        const rest = document.createElement('div');
+        rest.className = 'buzz-rest';
+        for (let i = 1; i < order.length; i++) {
+          const item = document.createElement('span');
+          item.className = 'buzz-rest-item';
+          item.innerHTML = '<span class="pos">' + (i + 1) + '.</span> ' + order[i];
+          rest.appendChild(item);
+        }
+        container.appendChild(rest);
+      }
+
+      document.getElementById('waiting-display').classList.remove('visible');
+      document.getElementById('status').textContent = `Команда ${order[0]} ответила первой!`;
+      document.getElementById('status').style.color = '#e94560';
+    }
+
     socket.on('round-started', () => {
       document.getElementById('status').textContent = 'Раунд идёт!';
       document.getElementById('status').style.color = '#2ecc71';
       document.getElementById('btn-start').disabled = true;
-      document.getElementById('winner-display').classList.remove('visible');
+      document.getElementById('buzz-queue').innerHTML = '';
       document.getElementById('waiting-display').classList.add('visible');
     });
 
-    socket.on('team-won', (teamNumber) => {
-      document.getElementById('status').textContent = `Команда ${teamNumber} ответила первой!`;
-      document.getElementById('status').style.color = '#e94560';
-      document.getElementById('winner-number').textContent = teamNumber;
-      document.getElementById('waiting-display').classList.remove('visible');
-      document.getElementById('winner-display').classList.add('visible');
-      document.getElementById('btn-start').disabled = true;
+    socket.on('team-buzzed', (order) => {
+      renderBuzzQueue(order);
     });
 
     socket.on('round-reset', () => {
       document.getElementById('status').textContent = 'Готово к игре';
       document.getElementById('status').style.color = '#aaa';
       document.getElementById('btn-start').disabled = false;
-      document.getElementById('winner-display').classList.remove('visible');
+      document.getElementById('buzz-queue').innerHTML = '';
       document.getElementById('waiting-display').classList.remove('visible');
     });
 
     socket.on('game-state', (state) => {
-      if (state.winner) {
-        document.getElementById('winner-number').textContent = state.winner;
-        document.getElementById('winner-display').classList.add('visible');
-        document.getElementById('status').textContent = `Команда ${state.winner} ответила первой!`;
-        document.getElementById('status').style.color = '#e94560';
+      if (state.buzzOrder && state.buzzOrder.length > 0) {
+        renderBuzzQueue(state.buzzOrder);
         document.getElementById('btn-start').disabled = true;
       }
     });
